@@ -52,7 +52,8 @@ This is the backend for a course website built with Flask. It includes user auth
 
 To run the Flask server, use the following command:
 ```bash
-flask run
+chmod +x setup.sh
+./setup.sh
 ```
 
 ## License
