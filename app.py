@@ -53,7 +53,7 @@ class Assignment(db.Model):
     description = db.Column(db.Text)
     due_date = db.Column(db.DateTime)
     course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
-    file_path = db.Column(db.String(256))
+    content = db.Column(db.JSON(True))
     # A one-to-many relationship: an assignment can have many submissions
     submissions = db.relationship('Submission', backref='assignment', lazy=True)
 
@@ -62,7 +62,7 @@ class Lecture(db.Model):
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
     course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
-    video_path = db.Column(db.String(256))
+    video_link = db.Column(db.String(256))
 
 class Submission(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -124,19 +124,10 @@ def get_courses():
 @jwt_required()
 def get_course(course_id):
     course = Course.query.filter_by(course_id=course_id).first()
-    if course:
-        course_details = {
-            "id": course.course_id,
-            "name": course.name,
-            "description": course.description,
-            "materials": {
-                "lectureVideos": ["/static/video1.mp4"],
-                "assignments": ["Assignment 1", "Assignment 2"],
-                "lectureNotes": ["Note 1", "Note 2"]
-            }
-        }
-        return jsonify(course_details)
-    return jsonify({"message": "Course not found"}), 404
+    if not course:
+        return jsonify({"message": "Course not found"}), 404
+    return jsonify(course)
+
 
 # Protected Teacher Endpoint: Upload an assignment file
 @app.route('/api/teacher/upload-assignment', methods=['POST'])
@@ -145,15 +136,34 @@ def upload_assignment():
     identity = get_jwt_identity()
     if identity.get('role') != 'teacher':
         return jsonify({"message": "Unauthorized"}), 403
-    if 'file' not in request.files:
-        return jsonify({"success": False, "message": "No file provided"}), 400
-    file = request.files['file']
-    filename = file.filename
-    upload_folder = os.path.join(os.getcwd(), "uploads", "assignments")
-    os.makedirs(upload_folder, exist_ok=True)
-    file_path = os.path.join(upload_folder, filename)
-    file.save(file_path)
-    return jsonify({"success": True, "message": "Assignment uploaded successfully", "filename": filename})
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "message": "No data provided"}), 400
+    
+    assignment_title = data.get('title')
+    assignment_description = data.get('description')
+    due_date = data.get('due_date')
+    course_id = data.get('course_id')
+    content = data.get('content')
+
+    if not assignment_title or not due_date or not course_id or not content:
+        return jsonify({"success": False, "message": "Missing required fields"}), 400
+
+    course = Course.query.filter_by(course_id=course_id).first()
+    if not course:
+        return jsonify({"success": False, "message": "Course not found"}), 404
+    
+    assignment = Assignment(
+        title=assignment_title,
+        description=assignment_description,
+        due_date=datetime.strptime(due_date, "%Y-%m-%dT%H:%M:%S"),
+        course_id=course.id,
+        content=content
+    )
+    db.session.add(assignment)
+    db.session.commit()
+    return jsonify({"success": True, "message": "Assignment uploaded successfully"})
 
 # Protected Teacher Endpoint: View submissions (dummy data)
 @app.route('/api/teacher/view-submissions', methods=['GET'])
@@ -162,11 +172,11 @@ def view_submissions():
     identity = get_jwt_identity()
     if identity.get('role') != 'teacher':
         return jsonify({"message": "Unauthorized"}), 403
-    submissions = [
-        {"student": "student1@example.com", "assignment": "Assignment 1", "submittedAt": "2023-02-01T10:00:00"},
-        {"student": "student2@example.com", "assignment": "Assignment 1", "submittedAt": "2023-02-01T10:30:00"}
-    ]
-    return jsonify(submissions)
+    
+    # TODO: get submissions
+    return jsonify(["Yet to implement end point"])
+
+
 
 # Protected Teacher Endpoint: Upload a lecture file
 @app.route('/api/teacher/upload-lecture', methods=['POST'])
@@ -175,24 +185,34 @@ def upload_lecture():
     identity = get_jwt_identity()
     if identity.get('role') != 'teacher':
         return jsonify({"message": "Unauthorized"}), 403
-    if 'file' not in request.files:
-        return jsonify({"success": False, "message": "No file provided"}), 400
-    file = request.files['file']
-    filename = file.filename
-    upload_folder = os.path.join(os.getcwd(), "uploads", "lectures")
-    os.makedirs(upload_folder, exist_ok=True)
-    file_path = os.path.join(upload_folder, filename)
-    file.save(file_path)
-    return jsonify({"success": True, "message": "Lecture uploaded successfully", "filename": filename})
 
-# Protected Chatbot Endpoint: Simulated chatbot response
-@app.route('/api/chatbot', methods=['POST'])
-@jwt_required()
-def chatbot():
     data = request.get_json()
-    message = data.get("message")
-    response = f"This is a response to '{message}'"
-    return jsonify({"reply": response})
+    if not data:
+        return jsonify({"success": False, "message": "No data provided"}), 400
+    
+    lecture_title = data.get('title')
+    lecture_description = data.get('description')
+    course_id = data.get('course_id')
+    video_link = data.get('video_link')
+
+    if not lecture_title or not course_id or not video_link:
+        return jsonify({"success": False, "message": "Missing required fields"}), 400
+    
+    course = Course.query.filter_by(course_id=course_id).first()
+    if not course:
+        return jsonify({"success": False, "message": "Course not found"}), 404
+    
+    lecture = Lecture(
+        title=lecture_title,
+        description=lecture_description,
+        course_id=course.id,
+        video_link=video_link
+    )
+
+    db.session.add(lecture)
+    db.session.commit()
+    return jsonify({"success": True, "message": "Lecture uploaded successfully"})
+
 
 # Serve static files (e.g., lecture videos) from the "public" folder
 @app.route('/static/<path:filename>', methods=['GET'])
