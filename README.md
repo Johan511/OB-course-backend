@@ -8,6 +8,7 @@ This is the backend for a course website built with Flask. It includes user auth
     ```bash
     git clone <repository-url>
     cd backend
+    chmod +x setup.sh
     ```
 
 2. **Create a virtual environment and activate it:**
@@ -21,10 +22,12 @@ This is the backend for a course website built with Flask. It includes user auth
     pip install -r requirements.txt
     ```
 
-4. **Run the setup script:**
-    ```bash
-    ./setup.sh
-    ```
+## Running the Server
+
+To run the Flask server, use the following command:
+```bash
+./setup.sh
+```
 
 ## API Endpoints
 
@@ -47,14 +50,6 @@ This is the backend for a course website built with Flask. It includes user auth
 ### Static Files
 
 - **Serve Static Files:** `GET /static/<filename>`
-
-## Running the Server
-
-To run the Flask server, use the following command:
-```bash
-chmod +x setup.sh
-./setup.sh
-```
 
 ## License
 
