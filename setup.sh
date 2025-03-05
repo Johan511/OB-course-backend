@@ -3,7 +3,7 @@
 # Set environment variables for Flask
 export FLASK_APP=app.py
 export FLASK_ENV=development  # Use "production" in production environments
-
+export OLLAMA_HOST=127.0.0.1:9999
 # Initialize the migration repository if it doesn't exist
 if [ ! -d "migrations" ]; then
     echo "Initializing migrations..."
