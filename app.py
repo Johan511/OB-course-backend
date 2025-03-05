@@ -9,6 +9,9 @@ from flask_jwt_extended import (
 )
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
+from sentence_transformers import SentenceTransformer
+import chromadb
+import ollama
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -17,6 +20,29 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///course_website.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'super-secret-key'  # Change this in production!
+
+MODEL = "deepseek-r1"
+OLLAMA_HOST = "http://localhost:9999"
+
+client = ollama.Client(
+    host=OLLAMA_HOST
+    )
+available_models = client.list()
+is_model_available = False
+for i in available_models.models:
+    if MODEL in i.model:
+        is_model_available = True
+        break
+
+if not is_model_available:
+    client.pull(MODEL)
+
+# Load embedding model
+embed_model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
+
+# Initialize ChromaDB (or FAISS)
+chroma_client = chromadb.PersistentClient(path="./chroma_db")
+collection = chroma_client.get_or_create_collection(name="documents")
 
 # Initialize extensions
 db = SQLAlchemy(app)
@@ -213,6 +239,68 @@ def upload_lecture():
     db.session.commit()
     return jsonify({"success": True, "message": "Lecture uploaded successfully"})
 
+@app.route("/api/rag/add_document", methods=["POST"])
+def add_document():
+    data = request.json
+    doc_text = data.get("text")
+    doc_id = data.get("id")
+
+    if not doc_text or not doc_id:
+        return jsonify({"error": "Missing text or id"}), 400
+
+    embedding = embed_model.encode(doc_text).tolist()
+    collection.add(ids=[doc_id], embeddings=[embedding], metadatas=[{"text": doc_text}])
+
+    return jsonify({"message": "Document added"})
+
+# Function to query RAG
+@app.route("/api/rag/query", methods=["POST"])
+def query_rag():
+    data = request.json
+    user_query = data.get("query")
+
+    if not user_query:
+        return jsonify({"error": "Missing query"}), 400
+
+    query_embedding = embed_model.encode(user_query).tolist()
+    results = collection.query(query_embeddings=[query_embedding], n_results=5)
+
+    retrieved_docs = [doc["text"] for doc in results["metadatas"][0]]
+    context = "\n".join(retrieved_docs)
+
+    # Pass retrieved context to LLM
+    response = client.chat(model=MODEL, messages=[
+    {"role": "system", "content": "Use the context to answer accurately."},
+    {"role": "user", "content": f"Context: {context}\nQuestion: {user_query}"}
+])
+
+    return jsonify({
+        "query": user_query,
+        "answer": response["message"]["content"],
+        "sources": retrieved_docs
+    })
+
+@app.route("/api/llm/query", methods=["POST"])
+def query_llm():
+    data = request.json
+    user_query = data.get("query")
+
+    if not user_query:
+        return jsonify({"error": "Missing query"}), 400
+
+    response = client.chat(model=MODEL, messages=[
+        {"role": "user", "content": user_query}
+    ])
+
+    return jsonify({
+        "query": user_query,
+        "answer": response["message"]["content"]
+    })
+
+# Health Check
+@app.route("/api/health", methods=["GET"])
+def health_check():
+    return jsonify({"status": "ok"})
 
 # Serve static files (e.g., lecture videos) from the "public" folder
 @app.route('/static/<path:filename>', methods=['GET'])
