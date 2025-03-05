@@ -4,6 +4,9 @@
 export FLASK_APP=app.py
 export FLASK_ENV=development  # Use "production" in production environments
 export OLLAMA_HOST=127.0.0.1:9999
+
+ollama  serve &
+
 # Initialize the migration repository if it doesn't exist
 if [ ! -d "migrations" ]; then
     echo "Initializing migrations..."
