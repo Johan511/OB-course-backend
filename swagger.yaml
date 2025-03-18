@@ -1,9 +1,7 @@
 openapi: 3.0.0
 info:
   title: Course Website API
-  version: "1.0.0"
-servers:
-  - url: http://localhost:5000
+  version: 1.0.0
 paths:
   /api/register:
     post:
@@ -13,84 +11,101 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RegisterRequest'
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
       responses:
         '201':
           description: User registered successfully.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessMessage'
         '400':
-          description: Email already registered or invalid input.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
+          description: Email already registered.
   /api/login:
     post:
-      summary: Login a user and return a JWT token.
+      summary: Login and get JWT token
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
       responses:
         '200':
-          description: Login successful; returns token.
+          description: Login successful.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LoginResponse'
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  token:
+                    type: string
+                  role:
+                    type: string
         '401':
           description: Invalid credentials.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
   /api/courses:
     get:
-      summary: Retrieve list of courses (JWT required)
+      summary: Get list of courses
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: A list of courses.
+          description: List of courses.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Course'
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    description:
+                      type: string
+        '401':
+          description: Unauthorized.
   /api/course/{course_id}:
     get:
-      summary: Retrieve course details by course ID (JWT required)
+      summary: Get course details
       security:
         - bearerAuth: []
       parameters:
         - name: course_id
           in: path
           required: true
-          description: The unique identifier of the course.
           schema:
             type: string
       responses:
         '200':
-          description: Course details retrieved successfully.
+          description: Course details.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Course'
+                type: object
         '404':
           description: Course not found.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
+        '401':
+          description: Unauthorized.
   /api/teacher/upload-assignment:
     post:
-      summary: Upload an assignment (Teacher only, JWT required)
+      summary: Upload an assignment (teacher only)
       security:
         - bearerAuth: []
       requestBody:
@@ -98,55 +113,41 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UploadAssignmentRequest'
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                due_date:
+                  type: string
+                  format: date-time
+                course_id:
+                  type: string
+                content:
+                  type: object
       responses:
         '200':
           description: Assignment uploaded successfully.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessMessage'
         '400':
-          description: Missing required fields or invalid data.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
+          description: Missing required fields.
         '403':
-          description: Unauthorized access (not a teacher).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
+          description: Unauthorized.
         '404':
           description: Course not found.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
   /api/teacher/view-submissions:
     get:
-      summary: View assignment submissions (Teacher only, JWT required)
+      summary: View submissions (teacher only)
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: List of submissions (dummy endpoint).
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: string
+          description: Submissions list.
         '403':
-          description: Unauthorized access.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
+          description: Unauthorized.
   /api/teacher/upload-lecture:
     post:
-      summary: Upload a lecture (Teacher only, JWT required)
+      summary: Upload a lecture (teacher only)
       security:
         - bearerAuth: []
       requestBody:
@@ -154,170 +155,122 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UploadLectureRequest'
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                course_id:
+                  type: string
+                video_link:
+                  type: string
       responses:
         '200':
           description: Lecture uploaded successfully.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessMessage'
         '400':
           description: Missing required fields.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
         '403':
-          description: Unauthorized access (not a teacher).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
+          description: Unauthorized.
         '404':
           description: Course not found.
+  /api/rag/add_document:
+    post:
+      summary: Add a document to RAG database
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                id:
+                  type: string
+      responses:
+        '200':
+          description: Document added.
+        '400':
+          description: Missing text or id.
+  /api/rag/query:
+    post:
+      summary: Query the RAG system
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+      responses:
+        '200':
+          description: Query results.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorMessage'
+                type: object
+                properties:
+                  query:
+                    type: string
+                  answer:
+                    type: string
+                  sources:
+                    type: array
+                    items:
+                      type: string
+        '400':
+          description: Missing query.
+  /api/llm/query:
+    post:
+      summary: Query the LLM directly
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+      responses:
+        '200':
+          description: Query results.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                  answer:
+                    type: string
+        '400':
+          description: Missing query.
+  /api/health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Health status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
   /static/{filename}:
     get:
-      summary: Serve static files from the public directory.
+      summary: Serve static files
       parameters:
         - name: filename
           in: path
           required: true
-          description: Filename of the static file.
           schema:
             type: string
       responses:
         '200':
-          description: File served successfully.
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '404':
-          description: File not found.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
-components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-  schemas:
-    RegisterRequest:
-      type: object
-      properties:
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-        role:
-          type: string
-          enum:
-            - student
-            - teacher
-      required:
-        - email
-        - password
-        - role
-    LoginRequest:
-      type: object
-      properties:
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-        role:
-          type: string
-          enum:
-            - student
-            - teacher
-      required:
-        - email
-        - password
-        - role
-    LoginResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        message:
-          type: string
-        token:
-          type: string
-        role:
-          type: string
-      required:
-        - success
-        - message
-        - token
-        - role
-    UploadAssignmentRequest:
-      type: object
-      properties:
-        title:
-          type: string
-        description:
-          type: string
-        due_date:
-          type: string
-          format: date-time
-          description: Due date in ISO 8601 format.
-        course_id:
-          type: string
-        content:
-          type: object
-      required:
-        - title
-        - due_date
-        - course_id
-        - content
-    UploadLectureRequest:
-      type: object
-      properties:
-        title:
-          type: string
-        description:
-          type: string
-        course_id:
-          type: string
-        video_link:
-          type: string
-      required:
-        - title
-        - course_id
-        - video_link
-    Course:
-      type: object
-      properties:
-        id:
-          type: string
-          description: Unique course identifier.
-        name:
-          type: string
-        description:
-          type: string
-      required:
-        - id
-        - name
-    SuccessMessage:
-      type: object
-      properties:
-        success:
-          type: boolean
-        message:
-          type: string
-    ErrorMessage:
-      type: object
-      properties:
-        message:
-          type: string
+          description: Static file.
