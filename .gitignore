@@ -2,3 +2,4 @@ __pycache__/
 instance/
 migrations/
 chroma_db/
+venv/
