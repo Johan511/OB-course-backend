@@ -14,7 +14,7 @@ import chromadb
 import ollama
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://localhost:3000"}})
 
 # Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///course_website.db'
@@ -125,18 +125,26 @@ def login():
     role = data.get('role')
     user = User.query.filter_by(email=email, role=role).first()
     if user and user.check_password(password):
-        access_token = create_access_token(identity={'email': user.email, 'role': user.role})
-        return jsonify({
+        access_token = create_access_token(identity=user.email, additional_claims={"role": user.role})
+        response = jsonify({
             "success": True,
             "message": "Login successful",
-            "token": access_token,
             "role": user.role
         })
+        response.set_cookie(
+            "access_token_cookie",
+            access_token,
+            httponly=True,
+            secure=False,
+            samesite="Lax"
+        )
+        return response
+    
     return jsonify({"success": False, "message": "Invalid credentials"}), 401
 
 # Protected Endpoint: Retrieve list of courses
 @app.route('/api/courses', methods=['GET'])
-@jwt_required()
+@jwt_required(locations=["cookies"])
 def get_courses():
     courses = Course.query.all()
     courses_list = [
@@ -147,7 +155,7 @@ def get_courses():
 
 # Protected Endpoint: Retrieve course details (including dummy materials)
 @app.route('/api/course/<course_id>', methods=['GET'])
-@jwt_required()
+@jwt_required(locations=["cookies"])
 def get_course(course_id):
     course = Course.query.filter_by(course_id=course_id).first()
     if not course:
@@ -157,7 +165,7 @@ def get_course(course_id):
 
 # Protected Teacher Endpoint: Upload an assignment file
 @app.route('/api/teacher/upload-assignment', methods=['POST'])
-@jwt_required()
+@jwt_required(locations=["cookies"])
 def upload_assignment():
     identity = get_jwt_identity()
     if identity.get('role') != 'teacher':
@@ -193,7 +201,7 @@ def upload_assignment():
 
 # Protected Teacher Endpoint: View submissions (dummy data)
 @app.route('/api/teacher/view-submissions', methods=['GET'])
-@jwt_required()
+@jwt_required(locations=["cookies"])
 def view_submissions():
     identity = get_jwt_identity()
     if identity.get('role') != 'teacher':
@@ -206,7 +214,7 @@ def view_submissions():
 
 # Protected Teacher Endpoint: Upload a lecture file
 @app.route('/api/teacher/upload-lecture', methods=['POST'])
-@jwt_required()
+@jwt_required(locations=["cookies"])
 def upload_lecture():
     identity = get_jwt_identity()
     if identity.get('role') != 'teacher':
