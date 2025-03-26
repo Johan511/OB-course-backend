@@ -129,14 +129,15 @@ def login():
         response = jsonify({
             "success": True,
             "message": "Login successful",
-            "role": user.role
+            "role": user.role,
+            "token": access_token
         })
         response.set_cookie(
             "access_token_cookie",
             access_token,
-            httponly=True,
             secure=False,
-            samesite="Lax"
+            httponly=False,
+            samesite="Lax",
         )
         return response
     
