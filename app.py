@@ -52,11 +52,20 @@ jwt = JWTManager(app)
 # ------------------
 # Database Models
 # ------------------
+
+user_courses = db.Table(
+    'user_courses',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id', name="fk_user_courses_user"), primary_key=True),
+    db.Column('course_id', db.Integer, db.ForeignKey('course.id', name="fk_user_courses_course"), primary_key=True)
+)
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(128))
     role = db.Column(db.String(20))  # "student" or "teacher"
+
+    courses = db.relationship('Course', secondary=user_courses, back_populates='users')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -73,6 +82,20 @@ class Course(db.Model):
     assignments = db.relationship('Assignment', backref='course', lazy=True)
     lectures = db.relationship('Lecture', backref='course', lazy=True)
 
+    users = db.relationship('User', secondary=user_courses, back_populates='courses')
+
+"""
+Assignment Content JSON format
+
+Assignment : [ Question, ... ]
+
+Question: 
+{
+    "question": "question text",
+    "options" : ["option text", ...]
+    "correct_option": index of correct option
+}
+"""
 class Assignment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
@@ -125,7 +148,7 @@ def login():
     role = data.get('role')
     user = User.query.filter_by(email=email, role=role).first()
     if user and user.check_password(password):
-        access_token = create_access_token(identity=user.email, additional_claims={"role": user.role})
+        access_token = create_access_token(identity=user.email, additional_claims={"role": user.role}, expires_delta=False)
         response = jsonify({
             "success": True,
             "message": "Login successful",
@@ -147,7 +170,9 @@ def login():
 @app.route('/api/courses', methods=['GET'])
 @jwt_required(locations=["cookies"])
 def get_courses():
-    courses = Course.query.all()
+    jwt = get_jwt_identity()
+    user = User.query.filter_by(email=jwt).first()
+    courses = user.courses
     courses_list = [
         {"id": course.course_id, "name": course.name, "description": course.description}
         for course in courses
@@ -161,6 +186,31 @@ def get_course(course_id):
     course = Course.query.filter_by(course_id=course_id).first()
     if not course:
         return jsonify({"message": "Course not found"}), 404
+    course = {
+        "id": course.course_id,
+        "name": course.name,
+        "description": course.description,
+        "assignments": [
+            {
+                "id": assignment.id,
+                "title": assignment.title,
+                "description": assignment.description,
+                "due_date": assignment.due_date,
+                "content": assignment.content
+            }
+            for assignment in course.assignments
+        ],
+        "lectures": [
+            {
+                "id": lecture.id,
+                "title": lecture.title,
+                "description": lecture.description,
+                "video_link": lecture.video_link
+            }
+            for lecture in course.lectures
+        ]
+    }
+
     return jsonify(course)
 
 
