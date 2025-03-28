@@ -121,6 +121,12 @@ class Submission(db.Model):
     file_path = db.Column(db.String(256))
     submitted_at = db.Column(db.DateTime, default=db.func.now())
 
+class Chathistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user = db.Column(db.String(120), nullable=False)
+    message = db.Column(db.String(256), nullable=False)
+    created_at = db.Column(db.DateTime, default=db.func.now())
+
 def check_cheating(query):
     forbidden_keywords = [ "solve", "answer", "solution"]
     return any(word in query.lower() for word in forbidden_keywords)
@@ -344,6 +350,10 @@ def query_rag():
     {"role": "user", "content": f"Context: {context}\nQuestion: {user_query}"}
 ])
 
+    chat = Chathistory(user="user", message=user_query)
+    db.session.add(chat)
+    db.session.commit()
+
     return jsonify({
         "query": user_query,
         "answer": clean_answer(response["message"]["content"]),
@@ -366,6 +376,17 @@ def query_llm():
         "query": user_query,
         "answer": response["message"]["content"]
     })
+
+# Function to get summary of chat history
+@app.route("/api/chat_history", methods=["GET"])
+def get_chat_history():
+    chat_history = Chathistory.query.all()
+    chat_history = [chat.message for chat in chat_history]
+
+    response = client.chat(model=MODEL, messages=[
+    {"role": "system", "content": "Use the context to answer accurately in less than 4 lines."},
+    {"role": "user", "content": f"Chat history: {chat_history}\nQuestion: Can summarise the chat history? with information like which topics is frequently queried"}])
+    return jsonify({"answer":response["message"]["content"]})
 
 # Health Check
 @app.route("/api/health", methods=["GET"])
