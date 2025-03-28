@@ -1,6 +1,12 @@
 # seed.py
 from app import app, db, Course, User, Assignment  # Import your app and models
+import chromadb
+from sentence_transformers import SentenceTransformer
 import datetime
+
+chroma_client = chromadb.PersistentClient(path="./chroma_db")
+collection = chroma_client.get_or_create_collection(name="documents")
+embed_model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
 
 def seed_data():
     # Seed Courses if none exist
@@ -56,6 +62,66 @@ def seed_data():
         course.assignments.append(assignment)
 
     db.session.commit()
+
+    rag_content = ["""
+1. The Cell: Basic Unit of Life
+    Cells are the fundamental units of life, forming the structural and functional basis of all organisms. There are two main types:
+
+    Prokaryotic Cells: Simple cells without a nucleus (e.g., bacteria).
+
+    Eukaryotic Cells: Complex cells with a nucleus and organelles (e.g., plant and animal cells).
+    Cell organelles like the nucleus, mitochondria, and ribosomes play essential roles in maintaining life processes.
+    """,
+    """  
+DNA & Genetics
+DNA (Deoxyribonucleic Acid) carries genetic instructions. Key concepts:
+
+Genes: Segments of DNA coding for proteins.
+
+Chromosomes: Structures holding DNA in cells.
+
+Mutation: Changes in DNA sequence leading to genetic variation.
+
+Heredity: Transmission of traits from parents to offspring.
+    """,
+    """
+    Evolution & Natural Selection
+Evolution explains species' adaptation over time. Charles Darwin proposed:
+
+Natural Selection: Favorable traits increase survival chances.
+
+Adaptation: Genetic changes enhancing survival.
+
+Speciation: Formation of new species due to genetic divergence.
+    """,
+    """
+    Human Body Systems
+The human body consists of interconnected systems:
+
+Circulatory System: Heart and blood vessels transport nutrients and oxygen.
+
+Digestive System: Breaks down food and absorbs nutrients.
+
+Nervous System: Brain and nerves control body functions.
+
+Respiratory System: Lungs facilitate oxygen intake and carbon dioxide removal.
+    """,
+    """
+    Ecology & Environment
+Ecology studies organisms and their environment. Key concepts:
+
+Ecosystem: A community of organisms interacting with their surroundings.
+
+Food Chain: Energy transfer from producers to consumers.
+
+Biodiversity: Variety of life forms in an ecosystem.
+
+Sustainability: Practices to maintain ecological balance.
+    """] 
+    for i in rag_content:
+        embedding = embed_model.encode(i).tolist()
+        collection.add(ids=[f"doc_{rag_content.index(i)}"], embeddings=[embedding], metadatas=[{"text": i}])
+
     print("Seeding complete.")
 
 if __name__ == '__main__':

@@ -12,6 +12,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from sentence_transformers import SentenceTransformer
 import chromadb
 import ollama
+import re
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://localhost:3000"}})
@@ -21,7 +22,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///course_website.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'super-secret-key'  # Change this in production!
 
-MODEL = "deepseek-r1"
+MODEL = "deepseek-r1:1.5b"
 OLLAMA_HOST = "http://localhost:9999"
 
 client = ollama.Client(
@@ -120,6 +121,13 @@ class Submission(db.Model):
     file_path = db.Column(db.String(256))
     submitted_at = db.Column(db.DateTime, default=db.func.now())
 
+def check_cheating(query):
+    forbidden_keywords = [ "solve", "answer", "solution"]
+    return any(word in query.lower() for word in forbidden_keywords)
+
+def clean_answer(answer):
+    """Removes content enclosed within <think>...</think> tags."""
+    return re.sub(r'<think>.*?</think>', '', answer, flags=re.DOTALL).strip()
 # ------------------
 # API Endpoints
 # ------------------
@@ -321,6 +329,9 @@ def query_rag():
     if not user_query:
         return jsonify({"error": "Missing query"}), 400
 
+    if check_cheating(user_query):
+        return jsonify({"error": "Cheating detected"}), 403
+
     query_embedding = embed_model.encode(user_query).tolist()
     results = collection.query(query_embeddings=[query_embedding], n_results=5)
 
@@ -329,13 +340,13 @@ def query_rag():
 
     # Pass retrieved context to LLM
     response = client.chat(model=MODEL, messages=[
-    {"role": "system", "content": "Use the context to answer accurately."},
+    {"role": "system", "content": "Use the context to answer accurately in less than 4 lines."},
     {"role": "user", "content": f"Context: {context}\nQuestion: {user_query}"}
 ])
 
     return jsonify({
         "query": user_query,
-        "answer": response["message"]["content"],
+        "answer": clean_answer(response["message"]["content"]),
         "sources": retrieved_docs
     })
 
