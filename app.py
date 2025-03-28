@@ -380,7 +380,6 @@ def query_llm():
 # Function to get summary of chat history
 @app.route("/api/chat_history", methods=["GET"])
 def get_chat_history():
-    chat_history = Chathistory.query.all()
     chat_history = [chat.message for chat in chat_history]
 
     response = client.chat(model=MODEL, messages=[
