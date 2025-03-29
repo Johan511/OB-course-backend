@@ -113,13 +113,15 @@ class Lecture(db.Model):
     description = db.Column(db.Text)
     course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
     video_link = db.Column(db.String(256))
+    transcript = db.Column(db.Text)
 
 class Submission(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_email = db.Column(db.String(120), nullable=False)
     assignment_id = db.Column(db.Integer, db.ForeignKey('assignment.id'), nullable=False)
-    file_path = db.Column(db.String(256))
     submitted_at = db.Column(db.DateTime, default=db.func.now())
+    content = db.Column(db.JSON(True)) 
+    score = db.Column(db.Float, nullable=True)
 
 class Chathistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -219,7 +221,8 @@ def get_course(course_id):
                 "id": lecture.id,
                 "title": lecture.title,
                 "description": lecture.description,
-                "video_link": lecture.video_link
+                "video_link": lecture.video_link,
+                "transcript": lecture.transcript
             }
             for lecture in course.lectures
         ]
@@ -227,6 +230,72 @@ def get_course(course_id):
 
     return jsonify(course)
 
+@app.route('/api/submit_assignment/<course_id>/<assignment_id>', methods=['POST'])
+@jwt_required(locations=["cookies"])
+def submit_assignment(course_id, assignment_id):
+    user_email = get_jwt_identity()
+    user = User.query.filter_by(email=user_email).first()
+
+    if not user:
+        return jsonify({"success": False, "message": "User not found"}), 404
+
+    # Check if the user is a student
+    if user.role != "student":
+        return jsonify({"success": False, "message": "Only students can submit assignments"}), 403
+
+    # Check if the course exists
+    course = Course.query.filter_by(course_id=course_id).first()
+    if not course:
+        return jsonify({"success": False, "message": "Course not found"}), 404
+
+    # Check if the assignment exists
+    assignment = Assignment.query.filter_by(id=assignment_id, course_id=course.id).first()
+    if not assignment:
+        return jsonify({"success": False, "message": "Assignment not found"}), 404
+
+    # Create a new submission record
+    submission = Submission(
+        student_email=user_email,
+        assignment_id=assignment.id,
+        content=request.get_json(),  # Assuming the submission content is sent in the request body
+        score=0
+    )
+    
+    assignment.submissions.append(submission)
+    for i, selected_option in enumerate(request.get_json()):
+        if assignment.content[i]['correct_option'] == selected_option:
+            submission.score += 1
+
+    return jsonify({"success": True, "message": "Assignment submitted successfully"})
+
+# Protected Endpoint: Fetch submissions for a specific assignment
+@app.route('/api/submissions/<assignment_id>', methods=['GET'])
+@jwt_required(locations=["cookies"])
+def fetch_submissions(assignment_id):
+    identity = get_jwt_identity()
+    user = User.query.filter_by(email=identity).first()
+    if not user:
+        return jsonify({"success": False, "message": "User not found"}), 404
+    # Check if the user is a teacher
+    if user.role != "teacher":
+        return jsonify({"success": False, "message": "Only teachers can view submissions"}), 403
+    # Check if the assignment exists
+    assignment = Assignment.query.filter_by(id=assignment_id).first()
+    if not assignment:
+        return jsonify({"success": False, "message": "Assignment not found"}), 404
+    # Fetch submissions for the assignment
+    submissions = Submission.query.filter_by(assignment_id=assignment.id).all()
+    submissions_list = [
+        {
+            "id": submission.id,
+            "student_email": submission.student_email,
+            "submitted_at": submission.submitted_at,
+            "content": submission.content,
+            "score": submission.score
+        }
+        for submission in submissions
+    ]
+    return jsonify({"success": True, "submissions": submissions_list})
 
 # Protected Teacher Endpoint: Upload an assignment file
 @app.route('/api/teacher/upload-assignment', methods=['POST'])

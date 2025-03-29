@@ -35,7 +35,25 @@ def seed_data():
 
     # Enroll student in course
     user = User.query.filter_by(id=1).first() 
-    course = Course.query.filter_by(course_id="course1").first() 
+    course = Course.query.filter_by(course_id="course1").first()
+
+    lectures = course.lectures
+    if(len(lectures) == 0):
+        # Add lectures to the course
+        lecture1 = {
+            "title": "Lecture 1: Introduction to Biology",
+            "description": "This is the content of lecture 1.",
+            "video_link" : "https://www.youtube.com/watch?v=example1",
+            "transcript" : "This is the transcript of lecture 1.",
+        }
+        lecture2 = {
+            "title": "Lecture 2: Cell Biology",
+            "description": "This is the content of lecture 2.",
+            "video_link" : "https://www.youtube.com/watch?v=example2",
+            "transcript" : "This is the transcript of lecture 2.",
+        }
+        course.lectures.append(lecture1)
+        course.lectures.append(lecture2)
 
     if course not in user.courses:
         user.courses.append(course)
