@@ -331,7 +331,9 @@ def add_document():
 def query_rag():
     data = request.json
     user_query = data.get("query")
+    course_id = data.get("location").split("/")[-1]
 
+    course = Course.query.filter_by(course_id=course_id).first()
     if not user_query:
         return jsonify({"error": "Missing query"}), 400
 
@@ -347,7 +349,7 @@ def query_rag():
     # Pass retrieved context to LLM
     response = client.chat(model=MODEL, messages=[
     {"role": "system", "content": "Use the context to answer accurately in less than 4 lines."},
-    {"role": "user", "content": f"Context: {context}\nQuestion: {user_query}"}
+    {"role": "user", "content": f"Context: {context+str(course)}\nQuestion: {user_query}"}
 ])
 
     chat = Chathistory(user="user", message=user_query)
@@ -386,7 +388,7 @@ def get_chat_history():
     response = client.chat(model=MODEL, messages=[
     {"role": "system", "content": "Use the context to answer accurately in less than 4 lines."},
     {"role": "user", "content": f"Chat history: {chat_history}\nQuestion: Can summarise the chat history? with information like which topics is frequently queried"}])
-    return jsonify({"answer":response["message"]["content"]})
+    return jsonify({"answer": clean_answer(response["message"]["content"])})
 
 # Health Check
 @app.route("/api/health", methods=["GET"])
