@@ -94,7 +94,7 @@ Question:
 {
     "question": "question text",
     "options" : ["option text", ...]
-    "correct_option": index of correct option
+    "correct_option": correct option
 }
 """
 class Assignment(db.Model):
@@ -231,9 +231,10 @@ def get_course(course_id):
     return jsonify(course)
 
 @app.route('/api/submit_assignment/<course_id>/<assignment_id>', methods=['POST'])
-@jwt_required(locations=["cookies"])
+# @jwt_required(locations=["cookies"])
 def submit_assignment(course_id, assignment_id):
-    user_email = get_jwt_identity()
+    # user_email = get_jwt_identity()
+    user_email = "student@example.com"
     user = User.query.filter_by(email=user_email).first()
 
     if not user:
@@ -249,7 +250,7 @@ def submit_assignment(course_id, assignment_id):
         return jsonify({"success": False, "message": "Course not found"}), 404
 
     # Check if the assignment exists
-    assignment = Assignment.query.filter_by(id=assignment_id, course_id=course.id).first()
+    assignment = Assignment.query.filter_by(course_id=course.id).first()
     if not assignment:
         return jsonify({"success": False, "message": "Assignment not found"}), 404
 
@@ -261,30 +262,33 @@ def submit_assignment(course_id, assignment_id):
         score=0
     )
     
-    assignment.submissions.append(submission)
     for i, selected_option in enumerate(request.get_json()):
+        print(assignment.content[i], selected_option)
         if assignment.content[i]['correct_option'] == selected_option:
             submission.score += 1
-
+    assignment.submissions.append(submission)
+    print(submission)
+    db.session.commit()
     return jsonify({"success": True, "message": "Assignment submitted successfully"})
 
 # Protected Endpoint: Fetch submissions for a specific assignment
 @app.route('/api/submissions/<assignment_id>', methods=['GET'])
-@jwt_required(locations=["cookies"])
+# @jwt_required(locations=["cookies"])
 def fetch_submissions(assignment_id):
-    identity = get_jwt_identity()
-    user = User.query.filter_by(email=identity).first()
-    if not user:
-        return jsonify({"success": False, "message": "User not found"}), 404
+    # identity = get_jwt_identity()
+    # user = User.query.filter_by(email=identity).first()
+    # if not user:
+        # return jsonify({"success": False, "message": "User not found"}), 404
     # Check if the user is a teacher
-    if user.role != "teacher":
-        return jsonify({"success": False, "message": "Only teachers can view submissions"}), 403
+    # if user.role != "teacher":
+        # return jsonify({"success": False, "message": "Only teachers can view submissions"}), 403
     # Check if the assignment exists
     assignment = Assignment.query.filter_by(id=assignment_id).first()
     if not assignment:
         return jsonify({"success": False, "message": "Assignment not found"}), 404
     # Fetch submissions for the assignment
     submissions = Submission.query.filter_by(assignment_id=assignment.id).all()
+    print(submissions)
     submissions_list = [
         {
             "id": submission.id,
@@ -451,6 +455,7 @@ def query_llm():
 # Function to get summary of chat history
 @app.route("/api/chat_history", methods=["GET"])
 def get_chat_history():
+    chat_history = Chathistory.query.all() 
     chat_history = [chat.message for chat in chat_history]
 
     response = client.chat(model=MODEL, messages=[
