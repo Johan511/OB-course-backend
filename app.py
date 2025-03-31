@@ -21,6 +21,7 @@ CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://local
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///course_website.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'super-secret-key'  # Change this in production!
+app.config['JWT_COOKIE_CSRF_PROTECT'] = False
 
 MODEL = "deepseek-r1:1.5b"
 OLLAMA_HOST = "http://localhost:9999"
@@ -231,9 +232,9 @@ def get_course(course_id):
     return jsonify(course)
 
 @app.route('/api/submit_assignment/<course_id>/<assignment_id>', methods=['POST'])
-# @jwt_required(locations=["cookies"])
+@jwt_required(locations=["cookies"])
 def submit_assignment(course_id, assignment_id):
-    # user_email = get_jwt_identity()
+    user_email = get_jwt_identity()
     user_email = "student@example.com"
     user = User.query.filter_by(email=user_email).first()
 
@@ -263,32 +264,30 @@ def submit_assignment(course_id, assignment_id):
     )
     
     for i, selected_option in enumerate(request.get_json()):
-        print(assignment.content[i], selected_option)
-        if assignment.content[i]['correct_option'] == selected_option:
+        print(assignment.content[i]['correct_option'], selected_option)
+        if assignment.content[i]['correct_option'] == assignment.content[i]['options'][int(selected_option)]:
             submission.score += 1
     assignment.submissions.append(submission)
-    print(submission)
     db.session.commit()
     return jsonify({"success": True, "message": "Assignment submitted successfully"})
 
 # Protected Endpoint: Fetch submissions for a specific assignment
 @app.route('/api/submissions/<assignment_id>', methods=['GET'])
-# @jwt_required(locations=["cookies"])
+@jwt_required(locations=["cookies"])
 def fetch_submissions(assignment_id):
-    # identity = get_jwt_identity()
-    # user = User.query.filter_by(email=identity).first()
-    # if not user:
-        # return jsonify({"success": False, "message": "User not found"}), 404
+    identity = get_jwt_identity()
+    user = User.query.filter_by(email=identity).first()
+    if not user:
+        return jsonify({"success": False, "message": "User not found"}), 404
     # Check if the user is a teacher
-    # if user.role != "teacher":
-        # return jsonify({"success": False, "message": "Only teachers can view submissions"}), 403
+    if user.role != "teacher":
+        return jsonify({"success": False, "message": "Only teachers can view submissions"}), 403
     # Check if the assignment exists
     assignment = Assignment.query.filter_by(id=assignment_id).first()
     if not assignment:
         return jsonify({"success": False, "message": "Assignment not found"}), 404
     # Fetch submissions for the assignment
     submissions = Submission.query.filter_by(assignment_id=assignment.id).all()
-    print(submissions)
     submissions_list = [
         {
             "id": submission.id,
