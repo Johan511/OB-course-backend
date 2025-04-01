@@ -10,7 +10,10 @@ This is the backend for a course website built with Flask. It includes user auth
     cd backend
     chmod +x setup.sh
     ```
-
+2. **Install Ollama host:**
+    ```
+    curl -fsSL https://ollama.com/install.sh | sh
+    ```
 2. **Create a virtual environment and activate it:**
     ```bash
     python3 -m venv venv
